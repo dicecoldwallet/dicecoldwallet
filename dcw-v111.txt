@@ -1,0 +1,185 @@
+import hashlib
+import os
+from tkinter import Button, Tk, Scrollbar, Text, END, PhotoImage, Label
+hexkey = "None"
+dicekey = "None"
+def sha256(self):
+    digest = hashlib.new("sha256")
+    digest.update(self)
+    return digest.digest()
+def ripemd160(x):
+    d = hashlib.new("ripemd160")
+    d.update(x)
+    return d.digest()
+def b58(self):
+    base58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    if self[0] == 0:
+        return "1" + b58(self[1:])
+    x = sum([v * (256 ** i) for i, v in enumerate(self[::-1])])
+    ret = ""
+    while x > 0:
+        ret = base58[x % 58] + ret
+        x = x // 58
+    return ret
+class Point:
+    def __init__(self,
+                 x=0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+                 y=0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8,
+                 p=2 ** 256 - 2 ** 32 - 2 ** 9 - 2 ** 8 - 2 ** 7 - 2 ** 6 - 2 ** 4 - 1):
+        self.x = x
+        self.y = y
+        self.p = p
+    def __add__(self, other):
+        return self.__radd__(other)
+    def __mul__(self, other):
+        return self.__rmul__(other)
+    def __rmul__(self, other):
+        n = self
+        q = None
+        for i in range(256):
+            if other & (1 << i):
+                q = q + n
+            n = n + n
+        return q
+    def __radd__(self, other):
+        if other is None:
+            return self
+        x1 = other.x
+        y1 = other.y
+        x2 = self.x
+        y2 = self.y
+        p = self.p
+        if self == other:
+            j = pow(2 * y2 % p, p - 2, p) * (3 * x2 * x2) % p
+        else:
+            j = pow(x1 - x2, p - 2, p) * (y1 - y2) % p
+        newx = (j ** 2 - x2 - x1) % p
+        newy = (j * x2 - j * newx - y2) % p
+        return Point(newx, newy)
+    def tobytes(self):
+        x = self.x.to_bytes(32, "big")
+        y = self.y.to_bytes(32, "big")
+        return b"\x04" + x + y
+def getpublickey(self):
+    secp256k1 = Point()
+    pk = int.from_bytes(bytes.fromhex(self), "big")
+    hash160 = ripemd160(sha256((secp256k1 * pk).tobytes()))
+    address = b"\x00" + hash160
+    address = b58(address + sha256(sha256(address))[:4])
+    return address
+def getwif(self):
+    wif = b"\x80" + bytes.fromhex(self)
+    wif = b58(wif + sha256(sha256(wif))[:4])
+    return wif
+def equalpress():
+    for x in (btn1, btn2, btn3, btn4, btn5, btn6, delete):
+        x.config(state='disabled')
+    global dicekey
+    dicekey = txt.get('1.0', 'end-1c')
+    nxt1.lift()
+def nxtpress1():
+    global hexkey
+    hexkey = str(hex(int(txt.get('1.0', 'end-1c').replace('6', '0'), 6))[2:]).zfill(64)
+    privkey = str(getwif(hexkey))
+    txt.configure(state='normal')
+    txt.delete(1.0, END)
+    txt.insert('1.0', "Private\nKey (WIF):\n" + privkey)
+    nxt2.lift()
+    txt.configure(state='disabled')
+def nxtpress2():
+    pubkey = str(getpublickey(hexkey))
+    txt.configure(state='normal')
+    txt.delete(1.0, END)
+    txt.insert('1.0', "Bitcoin\nAddress:\n" + pubkey)
+    back.lift()
+    txt.configure(state='disabled')
+def backpress():
+    txt.configure(state='normal')
+    txt.delete(1.0, END)
+    txt.insert('1.0', dicekey)
+    nxt1.lift()
+    txt.configure(state='disabled')
+def clear():
+    global counter
+    global hexkey
+    counter = 1
+    txt.configure(state='normal')
+    txt.delete(1.0, END)
+    txt.insert('1.0', "Version 111\nPlease enter your 99 dice throws.")
+    txt.configure(state='disabled')
+    for x in (btn1, btn2, btn3, btn4, btn5, btn6, delete):
+        x.config(state='normal')
+    delete.lift()
+    hexkey = "None"
+def undo():
+    global counter
+    global hexkey
+    txt.configure(state='normal')
+    hexkey = str(txt.get('1.0', 'end-1c')[:-1])
+    txt.delete(1.0, END)
+    txt.insert('1.0', hexkey)
+    counter -= 1
+    if counter < 2:
+        clear()
+    txt.configure(state='disabled')
+counter = 1
+if __name__ == "__main__":
+    gui = Tk()
+    gui.attributes('-fullscreen', True)
+    display = Scrollbar(gui)
+    txt = Text(gui, wrap='word', state='normal', width=11, height=9, font=('Times', 22), yscrollcommand=display.set)
+    txt.grid(row=0, columnspan=1, rowspan=5, sticky='ewns')
+    display.configure(command=txt.yview)
+    display.grid(row=2, column=0, sticky='ns')
+    txt.insert('1.0', "Version 111\nPlease enter your 99 dice throws.")
+    txt.configure(state='disabled')
+    gui.geometry('480x320')
+    def noshut():
+        no.lower(), yes.lower()
+    def count():
+        global counter
+        if counter == 99:
+            equalpress()
+        counter += 1
+    def start():
+        if counter == 1:
+            txt.delete(1.0, END)
+    def dicepad(self):
+        txt.configure(state='normal'), start(), txt.insert('end', self), count(), txt.configure(state='disabled')
+    gui.config(cursor='none')
+    image = PhotoImage(file="dcwimg.gif")
+    # image = PhotoImage(file="/boot/dcwimg.gif")
+    photo = Label(gui, image=image, height=30, width=300)
+    photo.grid(row=0, column=1, columnspan=6, sticky='news')
+    nxt1 = Button(gui, text='NXT', font=('Times', 20), fg='green', command=nxtpress1, height=1, width=4)
+    nxt1.grid(row=4, column=2, sticky='news')
+    nxt2 = Button(gui, text='NXT', font=('Times', 20), fg='green', command=nxtpress2, height=1, width=4)
+    nxt2.grid(row=4, column=2, sticky='news')
+    back = Button(gui, text='NXT', font=('Times', 20), fg='green', command=backpress, height=1, width=4)
+    back.grid(row=4, column=2, sticky='news')
+    no = Button(gui, text='NO', font=('Times', 20), fg='red', command=lambda: [no.lower(), yes.lower()],
+                height=1, width=4)
+    no.grid(row=4, column=3, sticky='news')
+    yes = Button(gui, text='YES', font=('Times', 20), fg='red', command=lambda: os.system("sudo shutdown -h now"),
+                 height=1, width=4)
+    yes.grid(row=4, column=2, sticky='news')
+    btn1 = Button(gui, text='1', font=('Times', 27), command=lambda: dicepad('1'), height=2, width=4)
+    btn1.grid(row=2, column=1, sticky='news')
+    btn2 = Button(gui, text='2', font=('Times', 27), command=lambda: dicepad('2'), height=2, width=4)
+    btn2.grid(row=2, column=2, sticky='news')
+    btn3 = Button(gui, text='3', font=('Times', 27), command=lambda: dicepad('3'), height=2, width=4)
+    btn3.grid(row=2, column=3, sticky='news')
+    btn4 = Button(gui, text='4', font=('Times', 27), command=lambda: dicepad('4'), height=2, width=4)
+    btn4.grid(row=3, column=1, sticky='news')
+    btn5 = Button(gui, text='5', font=('Times', 27), command=lambda: dicepad('5'), height=2, width=4)
+    btn5.grid(row=3, column=2, sticky='news')
+    btn6 = Button(gui, text='6', font=('Times', 27), command=lambda: dicepad('6'), height=2, width=4)
+    btn6.grid(row=3, column=3, sticky='news')
+    off = Button(gui, text='OFF', font=('Times', 20), fg='red', command=lambda: [no.lift(), yes.lift()],
+                 height=1, width=4)
+    off.grid(row=4, column=1, sticky='news')
+    delete = Button(gui, text=' DEL ', font=('Times', 20), fg='red', command=undo, height=1, width=4)
+    delete.grid(row=4, column=2, sticky='news')
+    ac = Button(gui, text='AC', font=('Times', 20), fg='red', command=clear, height=1, width=4)
+    ac.grid(row=4, column=3, sticky='news')
+    gui.mainloop()
